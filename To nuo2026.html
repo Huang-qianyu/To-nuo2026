@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生日快乐 陈诺</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1a0a0a 0%, #050505 100%);
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 视频流预览 - 已隐藏，但保持存在以供AI识别 */
+        #video-preview {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* 顶部标题 - 正常状态显示 */
+        #ui-overlay {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 5;
+            text-align: center;
+            width: 100%;
+            transition: opacity 1s;
+        }
+
+        h1 {
+            color: white;
+            font-size: 72px;
+            margin: 0;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.6), 0 0 30px rgba(255, 105, 180, 0.4);
+            letter-spacing: 12px;
+            user-select: none;
+        }
+
+        /* 彩蛋文字容器 - 屏幕正中央 */
+        #egg-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.95);
+            font-size: 26px;
+            font-weight: 300;
+            text-align: center;
+            z-index: 20;
+            pointer-events: none;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            opacity: 0;
+            width: 90%;
+            line-height: 1.8;
+            letter-spacing: 2px;
+            font-family: "Songti SC", "SimSun", serif;
+        }
+
+        /* 左上角手势提示词 - 淡灰色风格 */
+        #gesture-guide {
+            position: absolute;
+            top: 25px;
+            left: 25px; /* 移回左上角 */
+            color: rgba(200, 200, 200, 0.8); /* 淡灰色文字 */
+            z-index: 10;
+            /* 极低透明度的背景 */
+            background: rgba(255, 255, 255, 0.03); 
+            backdrop-filter: blur(5px);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+            line-height: 1.7;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+
+        #gesture-guide b {
+            color: rgba(230, 230, 230, 0.9); /* 标题稍微亮一点的灰白 */
+            margin-right: 5px;
+            font-weight: 500;
+        }
+
+        #status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #666;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        /* ----------------------------------
+           加载页面样式
+           ---------------------------------- */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 100;
+            flex-direction: column;
+            font-family: "Songti SC", "SimSun", serif;
+        }
+
+        .loading-content {
+            text-align: center;
+            opacity: 0;
+            animation: fadeIn 1.5s ease-out forwards;
+        }
+
+        .loading-icon {
+            font-size: 48px;
+            margin-bottom: 24px;
+            display: inline-block;
+            animation: float 2s ease-in-out infinite;
+        }
+
+        .loading-screen h2 {
+            font-weight: 300;
+            letter-spacing: 4px;
+            font-size: 24px;
+            margin-bottom: 12px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .loading-screen p {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            letter-spacing: 1px;
+            font-weight: 300;
+        }
+
+        /* ----------------------------------
+           信封/信纸样式
+           ---------------------------------- */
+        #letter-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 40; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
+        }
+
+        #letter-paper {
+            width: 85%;
+            max-width: 650px; 
+            background: rgba(20, 20, 25, 0.90);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            
+            padding: 30px 35px; 
+            max-height: 85vh;
+            
+            overflow-y: auto; 
+            
+            color: rgba(230, 230, 230, 0.95);
+            font-family: "Songti SC", "SimSun", "Times New Roman", serif;
+            font-size: 14.5px;
+            line-height: 1.6;
+            letter-spacing: 0.5px;
+            
+            transform: translateY(30px);
+            transition: transform 2s ease-out;
+            position: relative;
+            
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        
+        #letter-paper::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* 装饰性的金色边角 */
+        #letter-paper::before {
+            content: '';
+            position: absolute;
+            top: 10px; left: 10px; right: 10px; bottom: 10px;
+            border: 1px solid rgba(255, 215, 0, 0.1);
+            pointer-events: none;
+        }
+
+        #letter-content {
+            white-space: pre-wrap;
+            text-align: justify;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 激活状态 */
+        #letter-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #letter-overlay.active #letter-paper {
+            transform: translateY(0);
+        }
+
+    </style>
+</head>
+<body>
+<!-- 音乐自动播放 -->
+<audio src="不能说的秘密 - 周杰伦.mp3" autoplay="autoplay" loop></audio>
+
+<!-- 加载界面 -->
+<div id="loading" class="loading-screen">
+    <div class="loading-content">
+        <div class="loading-icon">🎂</div>
+        <h2>✨ 正在为您点亮蜡烛...</h2>
+        <p>请允许相机权限，开启手势魔法</p>
+    </div>
+</div>
+
+<!-- 左上角手势提示 - 更加隐晦 -->
+<div id="gesture-guide">
+    <div style="margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; color: rgba(240,240,240,0.9);">
+        <span id="status-dot"></span> 交互指南
+    </div>
+    <div><b>旋转手掌：</b> 视角旋转</div>
+    <div><b>五指张开：</b> 靠近蛋糕</div>
+    <div><b>握拳拉远：</b> 远离蛋糕</div>
+    <div style="margin-top: 8px; font-size: 11px; color: rgba(160, 160, 160, 0.6);">* 试试镜头拉的很近一小会</div>
+</div>
+
+<!-- 正常标题 -->
+<div id="ui-overlay">
+    <h1 id="title">生日快乐 陈诺</h1>
+</div>
+
+<!-- 彩蛋文字 -->
+<div id="egg-text"></div>
+
+<!-- 信封层 -->
+<div id="letter-overlay">
+    <div id="letter-paper">
+        <div id="letter-content"></div>
+    </div>
+</div>
+
+<video id="video-preview" autoplay playsinline></video>
+<div id="canvas-container"></div>
+
+<!-- 脚本引入 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+/**
+ * 配置与状态
+ */
+const CONFIG = {
+    minDist: 15,
+    maxDist: 85,
+    explodeThreshold: 19,
+    letterTriggerDist: 75, // 触发信封的距离阈值
+    letterTriggerTime: 4000, // 触发信封需要的持续时间(ms)
+    particleCount: 28000,
+    cakeColor: 0xffe066,
+    creamColor: 0xffffff,
+    strawberryColor: 0xff3355,
+    candleColor: 0x00f2ff
+};
+
+let scene, camera, renderer, particles;
+let explosionActive = false;
+let targetCameraDist = 55;
+let currentCameraAngle = 0;
+let handPresent = false;
+
+// 信封相关状态
+let farAwayStartTime = 0;
+let isLetterVisible = false;
+let letterFullText = `To 陈诺
+
+生日快乐呀，也谢谢你愿意看到这里。
+下面的内容可能你不愿意看，但也希望你能耐心看下去。
+
+你知道，我喜欢你的，那样的喜欢不是单纯的朋友间的。
+我总是能想起，你那天的拒绝，说着我们不合适，也让我始终是想不明白自己差劲在哪里。这让我窒息，让我压抑，又一遍遍劝说自己要变得更好，要保持适当的距离，要体贴耐心哪怕只是以朋友的身份，也要祝愿着见证着你遇到最爱你的人，见证着你有了最好的生活。
+
+我一直不知道，你是如何看我的，平淡，厌恶，喜欢？我也不知道自己是自作多情，还是反应迟钝。你总是不愿意提，刻意避开话题，如果是厌恶和无感，也是说的通的；你也总会愿意听我说的话，即使我有时候真的我自己都嫌我自己烦。如果你有想过我们之间是可能的，可又为什么不给我任何信号，也总让我够不着。
+
+也许从头到尾我都是错误的，都是我自己的胡思乱想，也许这些情感从一开始也都不存在。我也想过很多次放弃，在备忘录里写着一章章恶毒的话咒骂自己小丑，让自己放弃喜欢你。但是依然会被你的性格，你的样貌吸引，还是会像关注你，在意你。可能我就是不擅长把话说死，我还想做更多的尝试。
+
+所以，如果我们之间是有可能的，请和我好好谈一谈吧，把真实的问题和顾虑一起探讨，也请让我有资格继续喜欢你，别再一个人否定我们未来的可能好吗。
+
+这下，是真的是要说对不起了，说了那么多害你糟心的话。明明是你的生日，不该说这些的，应该送上最诚挚的祝愿。祝愿你遇到良人，幸福的在一起，我又不乐意哈哈哈，只好祝你每天都是开心了，祝你心想事成！
+
+喜欢你的 小黄`;
+
+// 彩蛋状态管理
+let eggStartTime = null;
+const eggTextEl = document.getElementById('egg-text');
+const titleEl = document.getElementById('ui-overlay');
+const guideEl = document.getElementById('gesture-guide');
+const letterOverlay = document.getElementById('letter-overlay');
+const letterContentEl = document.getElementById('letter-content');
+
+// 初始化信封内容
+letterContentEl.innerText = letterFullText;
+
+// 剧情脚本配置 (靠近时的彩蛋)
+const eggScript = [
+    { text: "没想到已经一年多了呢", delayBefore: 5000, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "不知道，今年我是让你开心更多，还是难过的更多呢", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "哈哈哈，总之谢谢你一直以来愿意倾听我说的话", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "即使，每天你自己也很受伤，很累", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "我还一直想收回之前，和你不愉快时的气话", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "其实我当时明明更想说", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "有遇到你真好！", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "我只是那时太痛了", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "但不后悔遇到你的！", delayBefore: 0, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "没了，没了，你不会还在等其他的彩蛋吧？", delayBefore: 6000, fadeIn: 2000, stay: 2000, fadeOut: 3000 },
+    { text: "好吧，好吧，那你试试镜头拉到最远等等看", delayBefore: 4000, fadeIn: 2000, stay: 999999, fadeOut: 0 } 
+];
+
+// 预计算时间轴
+let timeline = [];
+function buildTimeline() {
+    timeline = [];
+    let currentTime = 0;
+
+    eggScript.forEach(item => {
+        currentTime += item.delayBefore;
+        const start = currentTime;
+        const fullyVisible = start + item.fadeIn;
+        const startFadeOut = fullyVisible + item.stay;
+        const end = startFadeOut + item.fadeOut;
+        
+        timeline.push({
+            text: item.text,
+            start: start,
+            fullyVisible: fullyVisible,
+            startFadeOut: startFadeOut,
+            end: end,
+            fadeInDuration: item.fadeIn,
+            fadeOutDuration: item.fadeOut
+        });
+
+        currentTime = end;
+    });
+}
+buildTimeline();
+
+/**
+ * Three.js 初始化
+ */
+const vertexShader = `
+    attribute float size;
+    attribute vec3 color;
+    attribute vec3 velocity;
+    varying vec3 vColor;
+    uniform float time;
+    uniform float explode;
+
+    void main() {
+        vColor = color;
+        vec3 pos = position;
+
+        if (explode > 0.0) {
+            pos += velocity * explode * 3.5;
+        }
+
+        float pulse = 1.0 + 0.12 * sin(time * 3.5 + position.y * 0.5);
+        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+        gl_PointSize = size * (450.0 / -mvPosition.z) * pulse;
+        gl_Position = projectionMatrix * mvPosition;
+    }
+`;
+
+const fragmentShader = `
+    varying vec3 vColor;
+    void main() {
+        float dist = distance(gl_PointCoord, vec2(0.5));
+        if (dist > 0.5) discard;
+        float strength = pow(1.0 - (dist * 2.0), 1.6);
+        gl_FragColor = vec4(vColor, strength);
+    }
+`;
+
+function initThree() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    createCakeParticles();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function createCakeParticles() {
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const colors = [];
+    const sizes = [];
+    const velocities = [];
+
+    const addParticle = (x, y, z, colorHex, size) => {
+        positions.push(x, y, z);
+        const c = new THREE.Color(colorHex);
+        colors.push(c.r, c.g, c.b);
+        sizes.push(size);
+        const v = new THREE.Vector3(x, y + 2, z).normalize().multiplyScalar(Math.random() * 6 + 3);
+        velocities.push(v.x, v.y, v.z);
+    };
+
+    const createCylinder = (radius, height, baseY, color, count, isCream) => {
+        for (let i = 0; i < count; i++) {
+            const r = Math.sqrt(Math.random()) * radius;
+            const theta = Math.random() * Math.PI * 2;
+            const x = r * Math.cos(theta);
+            const z = r * Math.sin(theta);
+            const y = baseY + Math.random() * height;
+            
+            let finalColor = color;
+            if (isCream || r > radius * 0.9 || y > baseY + height * 0.92) {
+                finalColor = CONFIG.creamColor;
+            }
+            addParticle(x, y, z, finalColor, Math.random() * 0.7 + 0.4);
+        }
+    };
+
+    createCylinder(12, 7, -7, CONFIG.cakeColor, 15000, false);
+    createCylinder(8, 6, 0, CONFIG.cakeColor, 10000, false);
+
+    for (let j = 0; j < 10; j++) {
+        const angle = (j / 10) * Math.PI * 2;
+        const rx = 10 * Math.cos(angle);
+        const rz = 10 * Math.sin(angle);
+        for(let i=0; i<120; i++) {
+            addParticle(
+                rx + (Math.random()-0.5)*2, 
+                0.5 + (Math.random()-0.5)*2, 
+                rz + (Math.random()-0.5)*2, 
+                CONFIG.strawberryColor, 0.5
+            );
+        }
+    }
+
+    for (let i = 0; i < 600; i++) {
+        const x = (Math.random() - 0.5) * 0.6;
+        const z = (Math.random() - 0.5) * 0.6;
+        const y = 6 + Math.random() * 5;
+        const isFlame = y > 10;
+        addParticle(x, y, z, isFlame ? 0xffaa00 : CONFIG.candleColor, isFlame ? 0.8 : 0.4);
+    }
+
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+    geometry.setAttribute('velocity', new THREE.Float32BufferAttribute(velocities, 3));
+
+    const material = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            explode: { value: 0 }
+        },
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+}
+
+/**
+ * 手势处理
+ */
+const videoElement = document.getElementById('video-preview');
+const statusDot = document.getElementById('status-dot');
+
+function onResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        handPresent = true;
+        statusDot.style.background = "#00ff00";
+        const landmarks = results.multiHandLandmarks[0];
+        
+        const p0 = landmarks[0];
+        const p9 = landmarks[9];
+        const angle = Math.atan2(p9.y - p0.y, p9.x - p0.x) + Math.PI/2;
+        currentCameraAngle = -angle * 2.5;
+
+        const fingerTips = [8, 12, 16, 20];
+        let totalDist = 0;
+        fingerTips.forEach(tip => {
+            totalDist += Math.hypot(landmarks[tip].x - p0.x, landmarks[tip].y - p0.y);
+        });
+        
+        const handOpenFactor = totalDist / 4;
+        const isFist = handOpenFactor < 0.18;
+        const isOpen = handOpenFactor > 0.35;
+
+        const handScale = Math.hypot(landmarks[5].x - landmarks[17].x, landmarks[5].y - landmarks[17].y);
+        
+        if (isFist) {
+            const moveTarget = (0.4 - handScale) * 120 + 40;
+            targetCameraDist += (moveTarget - targetCameraDist) * 0.05;
+        } else if (isOpen) {
+            const moveTarget = (handScale - 0.1) * -160 + 50;
+            targetCameraDist += (moveTarget - targetCameraDist) * 0.1;
+        }
+
+        targetCameraDist = Math.max(CONFIG.minDist, Math.min(CONFIG.maxDist, targetCameraDist));
+    } else {
+        handPresent = false;
+        statusDot.style.background = "#ff3300";
+    }
+}
+
+const hands = new Hands({
+    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+});
+
+hands.setOptions({
+    maxNumHands: 1,
+    modelComplexity: 1,
+    minDetectionConfidence: 0.6,
+    minTrackingConfidence: 0.6
+});
+hands.onResults(onResults);
+
+const cameraMP = new Camera(videoElement, {
+    onFrame: async () => {
+        await hands.send({ image: videoElement });
+    },
+    width: 640,
+    height: 480
+});
+
+/**
+ * 动画循环与彩蛋逻辑
+ */
+let lastTime = 0;
+let explosionFactor = 0;
+
+function updateEggText(elapsed) {
+    let activeItem = null;
+    for (let item of timeline) {
+        if (elapsed >= item.start && elapsed < item.end) {
+            activeItem = item;
+            break;
+        }
+        if (item.end > 900000 && elapsed >= item.start) {
+            activeItem = item;
+            break;
+        }
+    }
+
+    if (activeItem) {
+        eggTextEl.innerText = activeItem.text;
+        let opacity = 0;
+        if (elapsed < activeItem.fullyVisible) {
+            opacity = (elapsed - activeItem.start) / activeItem.fadeInDuration;
+        } else if (elapsed < activeItem.startFadeOut) {
+            opacity = 1;
+        } else {
+            if (activeItem.fadeOutDuration === 0) opacity = 1;
+            else opacity = 1 - (elapsed - activeItem.startFadeOut) / activeItem.fadeOutDuration;
+        }
+        eggTextEl.style.opacity = Math.max(0, Math.min(1, opacity));
+    } else {
+        eggTextEl.style.opacity = 0;
+    }
+}
+
+function updateLetterLogic(time) {
+    // 检查距离是否满足信封触发条件 (拉得很远)
+    if (targetCameraDist > CONFIG.letterTriggerDist) {
+        if (farAwayStartTime === 0) {
+            farAwayStartTime = time;
+        } else if (time - farAwayStartTime > CONFIG.letterTriggerTime) {
+            // 满足触发条件
+            if (!isLetterVisible) {
+                isLetterVisible = true;
+                letterOverlay.classList.add('active');
+                titleEl.style.opacity = 0; // 隐藏标题
+            }
+        }
+    } else {
+        // 如果距离拉近了，重置计时器并隐藏信封
+        farAwayStartTime = 0;
+        if (isLetterVisible) {
+            isLetterVisible = false;
+            letterOverlay.classList.remove('active');
+            titleEl.style.opacity = 1; // 恢复标题
+        }
+    }
+}
+
+function animate(time) {
+    requestAnimationFrame(animate);
+    const dt = time - lastTime;
+    lastTime = time;
+
+    const lerpSpeed = 0.06;
+    const camX = Math.sin(currentCameraAngle) * targetCameraDist;
+    const camZ = Math.cos(currentCameraAngle) * targetCameraDist;
+    const camY = 6 + (targetCameraDist * 0.15);
+
+    camera.position.x += (camX - camera.position.x) * lerpSpeed;
+    camera.position.z += (camZ - camera.position.z) * lerpSpeed;
+    camera.position.y += (camY - camera.position.y) * lerpSpeed;
+    camera.lookAt(0, -2, 0);
+
+    // 逻辑判定区分
+    const isExploding = targetCameraDist < CONFIG.explodeThreshold;
+    
+    // --- 1. 靠近爆炸/短彩蛋逻辑 ---
+    if (isExploding) {
+        if (!explosionActive) {
+            explosionActive = true;
+            eggStartTime = time; 
+            titleEl.style.opacity = 0;
+            guideEl.style.opacity = 0;
+        }
+        explosionFactor += (1.0 - explosionFactor) * 0.08;
+        const eggElapsed = time - eggStartTime;
+        updateEggText(eggElapsed);
+    } else {
+        if (explosionActive) {
+            explosionActive = false;
+            eggStartTime = null;
+            // 如果此时信封也没显示，才恢复标题
+            if (!isLetterVisible) {
+                titleEl.style.opacity = 1;
+                guideEl.style.opacity = 1;
+            }
+            eggTextEl.style.opacity = 0;
+            eggTextEl.innerText = "";
+        }
+        explosionFactor += (0.0 - explosionFactor) * 0.12;
+    }
+
+    // --- 2. 远离/长信封逻辑 ---
+    updateLetterLogic(time);
+
+    // --- 3. 粒子渲染 ---
+    if (particles) {
+        particles.material.uniforms.time.value = time * 0.001;
+        particles.material.uniforms.explode.value = explosionFactor;
+        
+        // 旋转逻辑：信封出现时，背景也依然缓慢旋转
+        if (explosionActive) {
+            particles.rotation.y += 0.0005; 
+        } else if (!handPresent) {
+            // 没有手势时自动旋转
+            particles.rotation.y += 0.003;  
+        } else {
+            // 手势控制时，如果信封出现了，也可以保持一点点自转增加氛围
+            if (isLetterVisible) {
+                particles.rotation.y += 0.001;
+            }
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+
+window.onload = () => {
+    initThree();
+    cameraMP.start().then(() => {
+        document.getElementById('loading').style.display = 'none';
+        animate(0);
+    });
+};
+</script>
+</body>
+</html>
